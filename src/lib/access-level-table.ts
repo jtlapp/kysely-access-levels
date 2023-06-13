@@ -7,13 +7,13 @@ import {
   Selectable,
   WhereInterface,
   sql,
-} from "kysely";
+} from 'kysely';
 
 import {
   KeyDataType,
   KeyType,
   AccessLevelTableConfig,
-} from "./access-level-table-config";
+} from './access-level-table-config';
 
 // TODO: consider renaming class to "QueryGuard" or similar
 
@@ -81,23 +81,23 @@ export class AccessLevelTable<
   async create(db: Kysely<any>) {
     await db.schema
       .createTable(this.tableName)
-      .addColumn("userKey", this.config.userKeyDataType, (col) =>
-        col.notNull().references(this.foreignUserKeyColumn).onDelete("cascade")
+      .addColumn('userKey', this.config.userKeyDataType, (col) =>
+        col.notNull().references(this.foreignUserKeyColumn).onDelete('cascade')
       )
-      .addColumn("resourceKey", this.config.resourceKeyDataType, (col) =>
+      .addColumn('resourceKey', this.config.resourceKeyDataType, (col) =>
         col
           .notNull()
           .references(this.foreignResourceKeyColumn)
-          .onDelete("cascade")
+          .onDelete('cascade')
       )
-      .addColumn("accessLevel", "integer", (col) => col.notNull())
-      .addUniqueConstraint(`${this.tableName}_key`, ["userKey", "resourceKey"])
+      .addColumn('accessLevel', 'integer', (col) => col.notNull())
+      .addUniqueConstraint(`${this.tableName}_key`, ['userKey', 'resourceKey'])
       .execute();
 
     await db.schema
       .createIndex(`${this.tableName}_index`)
       .on(this.tableName)
-      .column("accessLevel")
+      .column('accessLevel')
       .execute();
   }
 
@@ -117,7 +117,16 @@ export class AccessLevelTable<
   }
 
   /**
-   * Inserts a row into the indicated table
+   * Inserts a row into the indicated table if the user has a sufficient access
+   * level to the governing resource. The resource owner always has full access.
+   * @param db Database instance.
+   * @param minRequiredAccessLevel Minimum access level required to insert.
+   * @param userKey Key of user to check access for.
+   * @param intoTable Table to insert into.
+   * @param values Values object to insert.
+   * @param resourceReferenceColumn Column in values object that references the
+   *  resource that governs access.
+   * @returns The insert query builder.
    */
   // TODO: restrict resourceReferenceColumn to columns of the right type
   // TODO: make the args more manageable
@@ -167,7 +176,7 @@ export class AccessLevelTable<
     intoTable: TB,
     values: Insertable<DB[TB]>,
     resourceReferenceColumn: keyof Insertable<DB[TB]> & string,
-    returning: "*"
+    returning: '*'
   ): InsertQueryBuilder<DB, TB, Selectable<DB[TB]>>;
 
   guardInsert<DB, TB extends keyof DB & string>(
@@ -180,7 +189,7 @@ export class AccessLevelTable<
     returning?:
       | Readonly<keyof Selectable<DB[TB]> & string>
       | Readonly<(keyof Selectable<DB[TB]> & string)[]>
-      | "*"
+      | '*'
   ) {
     const query = db
       .insertInto(intoTable)
@@ -203,7 +212,7 @@ export class AccessLevelTable<
       );
     return returning === undefined
       ? query
-      : returning == "*"
+      : returning == '*'
       ? query.returningAll()
       : Array.isArray(returning)
       ? query.returning(returning)
@@ -231,21 +240,21 @@ export class AccessLevelTable<
     const ref = db.dynamic.ref.bind(db.dynamic);
     return qb.where(({ or, cmpr, exists }) =>
       or([
-        cmpr(ref(this.config.resourceOwnerKeyColumn), "=", userKey),
+        cmpr(ref(this.config.resourceOwnerKeyColumn), '=', userKey),
         exists(
           // reference prefixed columns to avoid conflicts
           db
             .selectFrom(this.tableName)
             .selectAll() // TODO: select a literal
-            .where(ref(this.internalUserKeyColumn), "=", userKey)
+            .where(ref(this.internalUserKeyColumn), '=', userKey)
             .whereRef(
               ref(this.internalResourceKeyColumn),
-              "=",
+              '=',
               ref(this.foreignResourceKeyColumn)
             )
             .where(
               ref(this.internalAccessLevelColumn),
-              ">=",
+              '>=',
               minRequiredAccessLevel
             )
         ),
@@ -281,30 +290,30 @@ export class AccessLevelTable<
     );
 
     return qb
-      .select(sql.lit(this.config.ownerAccessLevel).as("accessLevel"))
-      .where(foreignResourceOwnerKeyColumnRef, "=", userKey)
+      .select(sql.lit(this.config.ownerAccessLevel).as('accessLevel'))
+      .where(foreignResourceOwnerKeyColumnRef, '=', userKey)
       .unionAll(
         qb
           .innerJoin(this.tableName as keyof DB & string, (join) =>
             join
-              .on(ref(this.internalUserKeyColumn), "=", userKey)
+              .on(ref(this.internalUserKeyColumn), '=', userKey)
               .onRef(
                 ref(this.internalResourceKeyColumn),
-                "=",
+                '=',
                 ref(this.foreignResourceKeyColumn)
               )
           )
           .select(
             sql
               .ref<AccessLevel>(this.internalAccessLevelColumn)
-              .as("accessLevel")
+              .as('accessLevel')
           )
           // Including the contrary condition prevents UNION ALL duplicates
           // and allows the database to short-circuit if 1st condition holds.
-          .where(foreignResourceOwnerKeyColumnRef, "!=", userKey)
+          .where(foreignResourceOwnerKeyColumnRef, '!=', userKey)
           .where(
             ref(this.internalAccessLevelColumn),
-            ">=",
+            '>=',
             minRequiredAccessLevel
           )
       ) as QB;
@@ -327,8 +336,8 @@ export class AccessLevelTable<
     if (accessLevel === 0) {
       await db
         .deleteFrom(this.tableName as keyof any & string)
-        .where("userKey", "=", userKey)
-        .where("resourceKey", "=", resourceKey)
+        .where('userKey', '=', userKey)
+        .where('resourceKey', '=', resourceKey)
         .execute();
     } else {
       await db
